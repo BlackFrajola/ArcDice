@@ -1,105 +1,268 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>🎲 ArcDice by @BlackSat0shi</title>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <!-- Ethers.js v5 -->
-    <script src="https://cdn.ethers.io/lib/ethers-5.7.umd.min.js"></script>
-    <style>
-        body { font-family: Arial, sans-serif; background: #000; color: #0f0; text-align: center; padding: 50px; }
-        button { padding: 20px 30px; font-size: 24px; margin: 10px; background: #0f0; color: #000; border: none; border-radius: 10px; cursor: pointer; }
-        button:hover { background: #0c0; }
-        #status { font-size: 22px; margin: 20px; }
-        .win { color: gold; animation: blink 0.5s infinite; }
-        @keyframes blink { 50% { opacity: 0.5; } }
-        input { padding: 15px; font-size: 20px; width: 80px; text-align: center; }
-    </style>
+  <meta charset="UTF-8" />
+  <title>ArcDice – Roll the Dice!</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Ethers v5 UMD -->
+  <script src="https://cdn.ethers.io/lib/ethers-5.7.umd.min.js"></script>
+  <style>
+    body {
+      background: #000;
+      color: #0f0;
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 40px 10px;
+    }
+    h1 {
+      font-size: 36px;
+      margin-bottom: 10px;
+    }
+    .dice {
+      font-size: 40px;
+      margin-right: 10px;
+      vertical-align: middle;
+    }
+    p {
+      font-size: 18px;
+    }
+    button {
+      padding: 18px 32px;
+      font-size: 20px;
+      margin: 10px;
+      background: #00ff00;
+      color: #000;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    button:hover {
+      background: #00cc00;
+    }
+    button:disabled {
+      background: #555;
+      color: #999;
+      cursor: not-allowed;
+    }
+    input[type="number"] {
+      padding: 14px;
+      font-size: 24px;
+      width: 90px;
+      text-align: center;
+      border-radius: 6px;
+      border: 1px solid #0f0;
+      background: #fff;
+      color: #000;
+    }
+    #status {
+      margin-top: 25px;
+      font-size: 18px;
+      min-height: 24px;
+    }
+    .status-error {
+      color: #ff3333;
+    }
+    .status-ok {
+      color: #00ff00;
+    }
+    .status-warn {
+      color: #ffcc00;
+    }
+    .address {
+      font-size: 14px;
+      margin-top: 8px;
+      color: #aaa;
+    }
+  </style>
 </head>
 <body>
-    <h1>🎲 ArcDice – Roll the Dice!</h1>
-    <p>Bet 1 USDC, pick a number from 1–6. Win 5.7x if you hit! (Arc Testnet)</p>
-    
-    <button onclick="connect()">Connect wallet</button><br><br>
+  <h1><span class="dice">🎲</span>ArcDice – Roll the Dice!</h1>
+  <p>Bet 1 USDC, pick a number from 1–6. Win 5.7x if you hit! (Arc Testnet)</p>
 
-    <label for="choice">Your bet (1–6): </label>
-    <input type="number" id="choice" min="1" max="6" value="3"> 
-    <button onclick="roll()">🎲 ROLL DICE!</button>
+  <div>
+    <button id="connect-btn" onclick="connectWallet()">Connect wallet</button>
+  </div>
+  <div class="address" id="address-label"></div>
 
-    <p id="status">Connect your wallet to start.</p>
+  <div style="margin-top: 40px;">
+    <p>Your bet (1–6):</p>
+    <input type="number" id="choice" min="1" max="6" value="3" />
+    <button id="roll-btn" onclick="rollDice()">🎲 ROLL DICE!</button>
+  </div>
 
-    <script>
-        // Addresses on Arc Testnet
-        const CONTRACT = "0x3d15ec762c399a0978b22bafd2009f58f0136239"; // ArcDice
-        const USDC     = "0x3600000000000000000000000000000000000000";   // USDC
+  <div id="status">Connect your wallet to start.</div>
 
-        // Minimal ABI: only need roll() from ArcDice
-        const ARC_DICE_ABI = [
-            {
-                "inputs":[{"internalType":"uint256","name":"choice","type":"uint256"}],
-                "name":"roll",
-                "outputs":[],
-                "stateMutability":"nonpayable",
-                "type":"function"
-            }
-        ];
+  <script>
+    // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    // EDIT THESE THREE CONSTANTS WITH YOUR REAL VALUES
+    // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    const ARC_CHAIN_ID = 5042002; // Arc Testnet chainId (decimal)
+    const CONTRACT = "0xYOUR_ARCDICE_CONTRACT_HERE"; // <-- ArcDice contract address
+    const USDC = "0xYOUR_USDC_ADDRESS_HERE";         // <-- USDC on Arc Testnet
+    // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-        let contract, signer;
+    // Minimal ABI for ArcDice + USDC
+    const GAME_ABI = [
+      {
+        "inputs": [{ "internalType": "uint256", "name": "choice", "type": "uint256" }],
+        "name": "roll",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+      },
+      {
+        "inputs": [],
+        "name": "totalRolls",
+        "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+        "stateMutability": "view",
+        "type": "function"
+      },
+      {
+        "inputs": [],
+        "name": "totalWins",
+        "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+        "stateMutability": "view",
+        "type": "function"
+      }
+    ];
 
-        async function connect() {
-            try {
-                if (!window.ethereum) {
-                    alert("No wallet detected. Please install Rabby or MetaMask.");
-                    return;
-                }
+    const USDC_ABI = [
+      {
+        "inputs": [
+          { "internalType": "address", "name": "owner", "type": "address" },
+          { "internalType": "address", "name": "spender", "type": "address" }
+        ],
+        "name": "allowance",
+        "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+        "stateMutability": "view",
+        "type": "function"
+      },
+      {
+        "inputs": [
+          { "internalType": "address", "name": "spender", "type": "address" },
+          { "internalType": "uint256", "name": "amount", "type": "uint256" }
+        ],
+        "name": "approve",
+        "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
+        "stateMutability": "nonpayable",
+        "type": "function"
+      }
+    ];
 
-                const provider = new ethers.providers.Web3Provider(window.ethereum);
+    let provider = null;
+    let signer = null;
+    let game = null;
+    let usdc = null;
+    let currentAccount = null;
 
-                // Request account access
-                await provider.send("eth_requestAccounts", []);
+    const statusEl = document.getElementById("status");
+    const connectBtn = document.getElementById("connect-btn");
+    const rollBtn = document.getElementById("roll-btn");
+    const addrLabel = document.getElementById("address-label");
 
-                signer = provider.getSigner();
+    function setStatus(message, type = "ok") {
+      statusEl.textContent = message;
+      statusEl.className = "";
+      if (type === "error") statusEl.classList.add("status-error");
+      if (type === "warn") statusEl.classList.add("status-warn");
+      if (type === "ok") statusEl.classList.add("status-ok");
+    }
 
-                // ArcDice contract instance
-                contract = new ethers.Contract(CONTRACT, ARC_DICE_ABI, signer);
+    function shortAddress(addr) {
+      if (!addr) return "";
+      return addr.slice(0, 6) + "..." + addr.slice(-4);
+    }
 
-                document.getElementById("status").innerText =
-                    "Wallet connected. If a roll fails, check allowance/USDC on Arc Testnet.";
-            } catch (e) {
-                console.error(e);
-                document.getElementById("status").innerText =
-                    "Failed to connect. Check the network (Arc Testnet) and try again.";
-            }
+    async function connectWallet() {
+      try {
+        if (!window.ethereum) {
+          alert("No wallet detected. Please install Rabby or MetaMask.");
+          setStatus("No wallet detected in this browser.", "error");
+          return;
         }
 
-        async function roll() {
-            if (!contract) {
-                alert("Please connect your wallet first.");
-                return;
-            }
+        connectBtn.disabled = true;
+        setStatus("Connecting wallet…", "warn");
 
-            const choice = Number(document.getElementById("choice").value);
+        // "any" prevents EIP-155 chain changes from breaking provider
+        provider = new ethers.providers.Web3Provider(window.ethereum, "any");
 
-            if (choice < 1 || choice > 6 || !Number.isInteger(choice)) {
-                alert("Please choose an integer between 1 and 6.");
-                return;
-            }
+        const accounts = await provider.send("eth_requestAccounts", []);
+        currentAccount = accounts[0];
+        signer = provider.getSigner();
 
-            document.getElementById("status").innerText =
-                `Sending transaction… Rolling with choice ${choice}...`;
+        const network = await provider.getNetwork();
+        console.log("Connected network:", network);
 
-            try {
-                const tx = await contract.roll(choice);
-                await tx.wait(); // wait for mining
+        addrLabel.textContent = `Connected: ${shortAddress(currentAccount)} (chainId ${network.chainId})`;
+        connectBtn.textContent = "Wallet connected";
 
-                document.getElementById("status").innerHTML =
-                    "<span class='win'>🎉 Dice rolled! Check your wallet / explorer for the result.</span>";
-            } catch (e) {
-                console.error(e);
-                document.getElementById("status").innerText =
-                    "Roll failed. Check Arc Testnet, your USDC faucet and allowance for ArcDice.";
-            }
+        // Warn if user is not on Arc Testnet, but don't explode
+        if (network.chainId !== ARC_CHAIN_ID) {
+          setStatus(
+            `Wallet connected on chainId ${network.chainId}. Please switch to Arc Testnet and reconnect.`,
+            "warn"
+          );
+          connectBtn.disabled = false;
+          return;
         }
-    </script>
+
+        // Instantiate contracts
+        game = new ethers.Contract(CONTRACT, GAME_ABI, signer);
+        usdc = new ethers.Contract(USDC, USDC_ABI, signer);
+
+        // Check and set allowance (approve 500 USDC)
+        setStatus("Checking USDC allowance…", "warn");
+        const required = ethers.utils.parseUnits("500", 6); // 500 USDC
+        const allowance = await usdc.allowance(currentAccount, CONTRACT);
+
+        if (allowance.lt(required)) {
+          setStatus("Approving USDC for ArcDice…", "warn");
+          const tx = await usdc.approve(CONTRACT, required);
+          await tx.wait();
+        }
+
+        setStatus("Ready. Choose a number and roll!", "ok");
+        connectBtn.disabled = false;
+      } catch (err) {
+        console.error("connectWallet error:", err);
+        setStatus("Failed to connect. Open DevTools console for details.", "error");
+        connectBtn.disabled = false;
+      }
+    }
+
+    async function rollDice() {
+      try {
+        if (!game || !signer || !currentAccount) {
+          setStatus("Connect your wallet first.", "error");
+          return;
+        }
+
+        let choice = document.getElementById("choice").value;
+        choice = parseInt(choice, 10);
+
+        if (isNaN(choice) || choice < 1 || choice > 6) {
+          setStatus("Choose a number between 1 and 6.", "error");
+          return;
+        }
+
+        rollBtn.disabled = true;
+        setStatus(`Sending transaction… Rolling with choice ${choice}.`, "warn");
+
+        const tx = await game.roll(choice);
+        console.log("roll tx:", tx.hash);
+        setStatus("Waiting for confirmation…", "warn");
+        await tx.wait();
+
+        setStatus("🎉 Dice rolled! Check your wallet / explorer for result.", "ok");
+        rollBtn.disabled = false;
+      } catch (err) {
+        console.error("rollDice error:", err);
+        setStatus("Roll failed. Check Arc Testnet, faucet balance and allowance.", "error");
+        rollBtn.disabled = false;
+      }
+    }
+  </script>
 </body>
 </html>
