@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>🎲 ArcDice by @BlackSat0shi</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- Ethers.js v5 -->
+    <script src="https://cdn.ethers.io/lib/ethers-5.7.umd.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; background: #000; color: #0f0; text-align: center; padding: 50px; }
+        button { padding: 20px 30px; font-size: 24px; margin: 10px; background: #0f0; color: #000; border: none; border-radius: 10px; cursor: pointer; }
+        button:hover { background: #0c0; }
+        #status { font-size: 22px; margin: 20px; }
+        .win { color: gold; animation: blink 0.5s infinite; }
+        @keyframes blink { 50% { opacity: 0.5; } }
+        input { padding: 15px; font-size: 20px; width: 80px; text-align: center; }
+    </style>
+</head>
+<body>
+    <h1>🎲 ArcDice – Roll the Dice!</h1>
+    <p>Bet 1 USDC, pick a number from 1–6. Win 5.7x if you hit! (Arc Testnet)</p>
+    
+    <button onclick="connect()">Connect wallet</button><br><br>
+
+    <label for="choice">Your bet (1–6): </label>
+    <input type="number" id="choice" min="1" max="6" value="3"> 
+    <button onclick="roll()">🎲 ROLL DICE!</button>
+
+    <p id="status">Connect your wallet to start.</p>
+
+    <script>
+        // Addresses on Arc Testnet
+        const CONTRACT = "0x3d15ec762c399a0978b22bafd2009f58f0136239"; // ArcDice
+        const USDC     = "0x3600000000000000000000000000000000000000";   // USDC
+
+        // Minimal ABI: only need roll() from ArcDice
+        const ARC_DICE_ABI = [
+            {
+                "inputs":[{"internalType":"uint256","name":"choice","type":"uint256"}],
+                "name":"roll",
+                "outputs":[],
+                "stateMutability":"nonpayable",
+                "type":"function"
+            }
+        ];
+
+        let contract, signer;
+
+        async function connect() {
+            try {
+                if (!window.ethereum) {
+                    alert("No wallet detected. Please install Rabby or MetaMask.");
+                    return;
+                }
+
+                const provider = new ethers.providers.Web3Provider(window.ethereum);
+
+                // Request account access
+                await provider.send("eth_requestAccounts", []);
+
+                signer = provider.getSigner();
+
+                // ArcDice contract instance
+                contract = new ethers.Contract(CONTRACT, ARC_DICE_ABI, signer);
+
+                document.getElementById("status").innerText =
+                    "Wallet connected. If a roll fails, check allowance/USDC on Arc Testnet.";
+            } catch (e) {
+                console.error(e);
+                document.getElementById("status").innerText =
+                    "Failed to connect. Check the network (Arc Testnet) and try again.";
+            }
+        }
+
+        async function roll() {
+            if (!contract) {
+                alert("Please connect your wallet first.");
+                return;
+            }
+
+            const choice = Number(document.getElementById("choice").value);
+
+            if (choice < 1 || choice > 6 || !Number.isInteger(choice)) {
+                alert("Please choose an integer between 1 and 6.");
+                return;
+            }
+
+            document.getElementById("status").innerText =
+                `Sending transaction… Rolling with choice ${choice}...`;
+
+            try {
+                const tx = await contract.roll(choice);
+                await tx.wait(); // wait for mining
+
+                document.getElementById("status").innerHTML =
+                    "<span class='win'>🎉 Dice rolled! Check your wallet / explorer for the result.</span>";
+            } catch (e) {
+                console.error(e);
+                document.getElementById("status").innerText =
+                    "Roll failed. Check Arc Testnet, your USDC faucet and allowance for ArcDice.";
+            }
+        }
+    </script>
+</body>
+</html>
